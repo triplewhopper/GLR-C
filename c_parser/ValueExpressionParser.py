@@ -201,168 +201,85 @@ class ValueExpressionParser:
 
         GLRBranch.tokens = list(tokens)
         GLRBranch.goto = self.goto
-        # queue = deque([ParsingBranch([0], [], 0)])
         initValue = GLRBranch(GLRNode([], 0, None, ''))
-        queue = deque([initValue])
-        dictionary = {(initValue.top, initValue.pos): initValue}
+        activeTopStates = {(initValue.top, initValue.pos): initValue}
         ansCount = 0
         res = ''
         f = open('debug.html', 'w')
-        while queue:
-            # assert len(dictionary) == len(queue)
-            head: GLRBranch = queue.popleft()
-            try:
-                pass
-                dictionary.pop((head.top, head.pos))
-            except KeyError:
-                print('queue is', queue)
-                print('dictionary is', dictionary)
-                print('head is', head.top, ';', head.pos)
-                raise RuntimeError()
-            waitingList = []
-            a = head.nextToken()
-            s = head.backtraceLR().state
-            # print('stack:', head.stack)
-            # print('node:', head.nodestack)
-            print('s=%s,a=%s,pos=%s' % (s, a, head.pos))
-            print('head:', head.top)
+        while activeTopStates:
+            print('activeMap:%d\n' % len(activeTopStates), '\n'.join('%s=> %s' %(k,v) for k,v in activeTopStates.items()),sep='')
+            tmp = {}
+            for (top, pos), branch in activeTopStates.items():
+                a = branch.nextToken()
+                # print('stack:', head.stack)
+                # print('node:', head.nodestack)
+                print('s=%s,a=%s,pos=%s' % (top, a, pos))
+                print('head:', top.state)
 
-            def add(branch: GLRBranch):
-                pair = (branch.top, branch.pos)
-                waitingList.append(branch)
                 try:
-                    if pair not in dictionary:
-                        dictionary[pair] = branch
-                        queue.append(branch)
-                    else:  # dictionary[pair] != branch:
-                        ref = dictionary.pop(pair)
-                        ref.top.astNode.merge(branch.top.astNode)
-                        assert (ref.top, ref.pos) not in dictionary
-                        dictionary[(ref.top, ref.pos)] = ref
-                        print('合并成功！')
-                except KeyError:
-                    assert 0
-
-            try:
-                if a.token_t in self.action[s]:
-                    curActions = self.action[s][a.token_t]
-                else:
-                    # assert head.nodestack
-                    raise RuntimeError(
-                        'unexcpected \'%s\' after \'%s\' token, cur = %s, row %s, column %s\n expected tokens are listed as below:\n %s' %
-                        (a, head.backtraceLR().astNode, head.pos, a.position[0], a.position[1], self.action[s].keys()))
-                for curAction in curActions:
-                    if curAction[0] == 'shift':
-                        add(head.shift(curAction[1], Node(a.token_t, (), a.value)))
-                    elif curAction[0] == 'reduce':
-                        index = curAction[1]
-                        add(head.reduce(self.G[index]))
-                        print(self.G[index])
-                    elif curAction[0] == 'accept':
-                        print('accept')
-
-                        raise StopIteration()
-
+                    if a.token_t in self.action[top.state]:
+                        curActions = self.action[top.state][a.token_t]
                     else:
-                        assert 0
-                # queue.extend(waitingList.values())
-            except RuntimeError as e:
-                print('この分支は失敗してしまいました。')
-            except StopIteration as e:
-                print('成功しました。次は分析樹です')
-                res = head.top.astNode
-                ansCount += 1
-            #            queue.extend(waitingList)
-            print('queue at the end of while:\n    ', '\n    '.join(str(x) for x in queue), sep='')
-            #print('dictionary=')
-            #for k, v in dictionary.items():
-            #    print('%s =>\n  %s' % (k, v))
+                        # assert head.nodestack
+                        raise RuntimeError(
+                            'unexcpected \'%s\' after \'%s\' token, cur = %s, row %s, column %s\n expected tokens are listed as below:\n %s' %
+                            (a, head.backtraceLR().astNode, head.pos, a.position[0], a.position[1],
+                             self.action[top].keys()))
+                    for curAction in curActions:
+                        if curAction[0] == 'shift':
+                            print(curAction)
+                            newBranch = branch.shift(curAction[1], Node(a.token_t, (), a.value))
+                            print(newBranch)
+                            key = (newBranch.top, newBranch.pos)
+                            if key not in tmp:
+                                tmp[key] = [newBranch]
+                            else:
+                                tmp[key].append(newBranch)
+                            print(tmp)
+                        elif curAction[0] == 'reduce':
+                            print(curAction)
+                            index = curAction[1]
+                            # newBranches: list = branch.reduce(self.G[index])
+                            # #print(newBranches)
+                            # for newBranch in newBranches:
+                            #     key = (newBranch.top, newBranch.pos)
+                            #     if key not in tmp:
+                            #         tmp[key] = [newBranch]
+                            #     else:
+                            #         tmp[key].append(newBranch)
+                            newBranch: list = branch.reduce(self.G[index])
+                            #print(newBranches)
+                            key = (newBranch.top, newBranch.pos)
+                            if key not in tmp:
+                                tmp[key] = [newBranch]
+                            else:
+                                tmp[key].append(newBranch)
+                            print(self.G[index])
+                        elif curAction[0] == 'accept':
+                            print('accept')
+                            raise StopIteration()
+                        else:
+                            assert 0
+                except RuntimeError as e:
+                    print('この分支は失敗してしまいました。')
+                except StopIteration as e:
+                    print('成功しました。次は分析樹です')
+                    res += str(branch.top.astNode)
+                    ansCount += 1
+            print('tmp:%d\n' % len(tmp), '\n'.join('%s=> %s' %(k,v) for k,v in tmp.items()),sep='')
             print()
-        print('ansCount=', ansCount)
-        return res
-    def parse(self, tokens: list):
+            activeTopStates.clear()
+            for key in tmp:
+                assert len(key) == 2
+                top, pos = key
+                branches = tmp[key]
+                assert len(branches) > 0
+                if len(branches) >= 2:
+                    for i in range(1, len(branches)):
+                        branches[0].merge(branches[i])
+                assert key not in activeTopStates
+                activeTopStates[key] = branches[0]
 
-        # cur = -1
-        # ParsingBranch.tokens = list(tokens)
-        GLRBranch.tokens = list(tokens)
-        GLRBranch.goto = self.goto
-        # queue = deque([ParsingBranch([0], [], 0)])
-        initValue = GLRBranch(GLRNode([], 0, None, ''))
-        queue = deque([initValue])
-        dictionary = {(initValue.top, initValue.pos): initValue}
-        ansCount = 0
-        res = ''
-        f = open('debug.html', 'w')
-        while queue:
-            # assert len(dictionary) == len(queue)
-            head: GLRBranch = queue.popleft()
-            try:
-                pass
-                dictionary.pop((head.top, head.pos))
-            except KeyError:
-                print('queue is', queue)
-                print('dictionary is', dictionary)
-                print('head is', head.top, ';', head.pos)
-                raise RuntimeError()
-            waitingList = []
-            a = head.nextToken()
-            s = head.backtraceLR().state
-            # print('stack:', head.stack)
-            # print('node:', head.nodestack)
-            print('s=%s,a=%s,pos=%s' % (s, a, head.pos))
-            print('head:', head.top)
-
-            def add(branch: GLRBranch):
-                pair = (branch.top, branch.pos)
-                waitingList.append(branch)
-                try:
-                    if pair not in dictionary:
-                        dictionary[pair] = branch
-                        queue.append(branch)
-                    else:  # dictionary[pair] != branch:
-                        ref = dictionary.pop(pair)
-                        ref.top.astNode.merge(branch.top.astNode)
-                        assert (ref.top, ref.pos) not in dictionary
-                        dictionary[(ref.top, ref.pos)] = ref
-                        print('合并成功！')
-                except KeyError:
-                    assert 0
-
-            try:
-                if a.token_t in self.action[s]:
-                    curActions = self.action[s][a.token_t]
-                else:
-                    # assert head.nodestack
-                    raise RuntimeError(
-                        'unexcpected \'%s\' after \'%s\' token, cur = %s, row %s, column %s\n expected tokens are listed as below:\n %s' %
-                        (a, head.backtraceLR().astNode, head.pos, a.position[0], a.position[1], self.action[s].keys()))
-                for curAction in curActions:
-                    if curAction[0] == 'shift':
-                        add(head.shift(curAction[1], Node(a.token_t, (), a.value)))
-                    elif curAction[0] == 'reduce':
-                        index = curAction[1]
-                        add(head.reduce(self.G[index]))
-                        print(self.G[index])
-                    elif curAction[0] == 'accept':
-                        print('accept')
-
-                        raise StopIteration()
-
-                    else:
-                        assert 0
-                # queue.extend(waitingList.values())
-            except RuntimeError as e:
-                print('この分支は失敗してしまいました。')
-            except StopIteration as e:
-                print('成功しました。次は分析樹です')
-                res = head.top.astNode
-                ansCount += 1
-            #            queue.extend(waitingList)
-            print('queue at the end of while:\n    ', '\n    '.join(str(x) for x in queue), sep='')
-            #print('dictionary=')
-            #for k, v in dictionary.items():
-            #    print('%s =>\n  %s' % (k, v))
-            print()
         print('ansCount=', ansCount)
         return res
 
@@ -370,25 +287,27 @@ class ValueExpressionParser:
 class GLRNode:
     def __init__(self, prev: list, state: int, astNode: Node, character: str):
         self.state: int = state
-        #if astNode is None:
+        # if astNode is None:
         #    assert 0
         # self.astNode: list = list(astNode) if isinstance(astNode, set) else [astNode]
         self.astNode: Node = astNode
         self.character: str = character
+        assert astNode is None or self.character==self.astNode.character
         self.prev = tuple(prev)
 
     def __hash__(self):
-        return hash(('GLRNode', self.state, self.prev))
+        return hash(('GLRNode', self.state, self.astNode))
         # return hash(repr(self))
 
     def __eq__(self, other):
-        return self.state == other.state and self.prev == other.prev
+        assert isinstance(other, GLRNode)
+        return self.state == other.state and self.astNode == other.astNode  # and self.prev == other.prev
 
     def __repr__(self):
         # return '[%s; state:%s "%s": %s]' % (
         #     self.prev, self.state, self.character, '[' + ','.join(str(x) for x in self.astNode) + ']')
-        return '[%s; state:%s "%s": %s]' % (
-            self.prev, self.state, self.character, '[' + str(self.character) + ']')
+        return '(%s, %s \'%s\')' % (
+            ''.join(str(x) for x in self.prev), self.state, self.character)
 
 
 class GLRBranch:
@@ -413,18 +332,14 @@ class GLRBranch:
         return res
 
     def backtraceGLR(self, cur: GLRNode, production: Production, rhs: list, pointer=-1):
-        # GLR规约过程中的回溯。
-        # 考虑两种情况：
-        # 第一种，单线规约，直接将cur.astNode加入到children中。
-        # 第二种，在cur.astNode下面挂着好几个解，
         try:
             if cur.character != production.rhs[pointer]:
-                return
+                return []
         except (IndexError, AttributeError):
             # 匹配完文法符号了
             newTop = GLRNode([cur],
                              GLRBranch.goto[cur.state][production.lhs][1],
-                             Node(production.lhs, rhs[::-1]),
+                             Node(production.lhs, [rhs[::-1]]),
                              production.lhs)
             return GLRBranch(newTop, self._p)
 
@@ -433,17 +348,16 @@ class GLRBranch:
 
         rhs.append(cur.astNode)
         res = None
-        assert len(cur.prev) == 1
         if len(cur.prev) == 1:
             res = self.backtraceGLR(cur.prev[0], production, rhs, pointer - 1)
         else:
             for pre in cur.prev:
-
                 candidate = self.backtraceGLR(pre, production, rhs, pointer - 1)
                 if candidate:
                     if res:
-                        assert False
-                    res = candidate
+                        res.top.astNode.merge(candidate.top.astNode)
+                    else:
+                        res=candidate
 
         rhs.pop()
         return res
@@ -460,6 +374,12 @@ class GLRBranch:
     def reduce(self, production: Production):
         res = self.backtraceGLR(self._top, production, [])
         return res
+
+    def merge(self, other):
+        assert isinstance(other, GLRBranch)
+        assert other.top == self.top
+        assert other.pos == self.pos
+        self._top.prev += other.top.prev
 
     def __repr__(self):
         # return 'Branch(%s,%s)' % (self._top.state, self._top.astNode)
