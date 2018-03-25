@@ -6,6 +6,7 @@ import pickle
 from c_parser.grammar import Grammar
 from c_parser.production import Production
 from contextFreeGrammarParser import Node
+from typing import Dict, List, Tuple, Union, FrozenSet
 import hashlib
 
 
@@ -137,10 +138,10 @@ class ValueExpressionParser:
         with open('screen.html', 'w', encoding='utf-8') as file:
             print = file.write
 
-            def th(x: str or list or int = '', **kwargs) -> None:
+            def th(x: Union[str, list, int] = '', **kwargs) -> None:
                 print('<th %s>%s</th>' % (' '.join(map(lambda k: '%s="%s"' % (k, kwargs[k]), kwargs.keys())), x))
 
-            def td(x: str or list or int = '', args='') -> None:
+            def td(x: Union[str, list, int] = '', args='') -> None:
                 print('<td %s>%s</td>' % (args, x))
 
             print('<html><meta charset=\'utf-8\'><body>')
@@ -201,24 +202,25 @@ class ValueExpressionParser:
 
         GLRBranch.tokens = list(tokens)
         GLRBranch.goto = self.goto
-        initValue = GLRBranch(GLRNode([], 0, None, ''))
-        activeTopStates = {(initValue.top, initValue.pos): initValue}
+        initValue = GLRBranch(GLRNode([], 0, {0: frozenset([Node('', (), [])])}), 0)
+        activeTopStates: Dict[(int, int), GLRBranch] = {(initValue.state, initValue.pos): initValue}
         ansCount = 0
         res = ''
-        f = open('debug.html', 'w')
+        # f = open('debug.html', 'w')
         while activeTopStates:
-            print('activeMap:%d\n' % len(activeTopStates), '\n'.join('%s=> %s' %(k,v) for k,v in activeTopStates.items()),sep='')
-            tmp = {}
+            print('activeMap:%d\n' % len(activeTopStates),
+                  '\n'.join('%s=> %s' % (k, v) for k, v in activeTopStates.items()), sep='')
+            tmp: Dict[(int, int), List[GLRBranch]] = {}
             for (top, pos), branch in activeTopStates.items():
-                a = branch.nextToken()
+                a: CToken = branch.nextToken()
                 # print('stack:', head.stack)
                 # print('node:', head.nodestack)
                 print('s=%s,a=%s,pos=%s' % (top, a, pos))
-                print('head:', top.state)
+                print('head:', top)
 
                 try:
-                    if a.token_t in self.action[top.state]:
-                        curActions = self.action[top.state][a.token_t]
+                    if a.token_t in self.action[top]:
+                        curActions = self.action[top][a.token_t]
                     else:
                         # assert head.nodestack
                         raise RuntimeError(
@@ -228,9 +230,9 @@ class ValueExpressionParser:
                     for curAction in curActions:
                         if curAction[0] == 'shift':
                             print(curAction)
-                            newBranch = branch.shift(curAction[1], Node(a.token_t, (), a.value))
+                            newBranch = branch.shift(curAction[1], a)
                             print(newBranch)
-                            key = (newBranch.top, newBranch.pos)
+                            key = (newBranch.state, newBranch.pos)
                             if key not in tmp:
                                 tmp[key] = [newBranch]
                             else:
@@ -239,21 +241,14 @@ class ValueExpressionParser:
                         elif curAction[0] == 'reduce':
                             print(curAction)
                             index = curAction[1]
-                            # newBranches: list = branch.reduce(self.G[index])
-                            # #print(newBranches)
-                            # for newBranch in newBranches:
-                            #     key = (newBranch.top, newBranch.pos)
-                            #     if key not in tmp:
-                            #         tmp[key] = [newBranch]
-                            #     else:
-                            #         tmp[key].append(newBranch)
-                            newBranch: list = branch.reduce(self.G[index])
-                            #print(newBranches)
-                            key = (newBranch.top, newBranch.pos)
-                            if key not in tmp:
-                                tmp[key] = [newBranch]
-                            else:
-                                tmp[key].append(newBranch)
+                            newBranches: List[GLRBranch] = branch.reduce(self.G[index])
+                            # print(newBranches)
+                            for newBranch in newBranches:
+                                key = (newBranch.state, newBranch.pos)
+                                if key not in tmp:
+                                    tmp[key] = [newBranch]
+                                else:
+                                    tmp[key].append(newBranch)
                             print(self.G[index])
                         elif curAction[0] == 'accept':
                             print('accept')
@@ -264,15 +259,15 @@ class ValueExpressionParser:
                     print('この分支は失敗してしまいました。')
                 except StopIteration as e:
                     print('成功しました。次は分析樹です')
-                    res += str(branch.top.astNode)
+                    # assert len(branch.top) == 1
+                    res += ''.join(str(x) for x in branch.top.astNodes)
                     ansCount += 1
-            print('tmp:%d\n' % len(tmp), '\n'.join('%s=> %s' %(k,v) for k,v in tmp.items()),sep='')
+            print('tmp:%d\n' % len(tmp), '\n'.join('%s=> %s' % (k, v) for k, v in tmp.items()), sep='')
             print()
             activeTopStates.clear()
             for key in tmp:
                 assert len(key) == 2
-                top, pos = key
-                branches = tmp[key]
+                branches: List[GLRBranch] = tmp[key]
                 assert len(branches) > 0
                 if len(branches) >= 2:
                     for i in range(1, len(branches)):
@@ -285,38 +280,79 @@ class ValueExpressionParser:
 
 
 class GLRNode:
-    def __init__(self, prev: list, state: int, astNode: Node, character: str):
+    def __init__(self, prev: Union[List, FrozenSet], state: int, astNodes: Dict[int, FrozenSet[Node]]):
+        """
+
+        :param prev:
+        :type prev:List[GLRNode]
+        """
+        assert len(set(y.character for x in astNodes.values() for y in x)) <= 1
         self.state: int = state
         # if astNode is None:
         #    assert 0
         # self.astNode: list = list(astNode) if isinstance(astNode, set) else [astNode]
-        self.astNode: Node = astNode
-        self.character: str = character
-        assert astNode is None or self.character==self.astNode.character
-        self.prev = tuple(prev)
+        # self.asrNodes是按照node的prev跟self.prev中的哪一个方向一致来 分组的。
+        self.astNodes: Dict[int, FrozenSet[Node]] = dict(astNodes)
+        self.character = ''
+        for v in astNodes.values():
+            for node in v:
+                self.character = node.character
+                break
+            break
+        self.prev: FrozenSet[GLRNode] = frozenset(prev)
 
     def __hash__(self):
-        return hash(('GLRNode', self.state, self.astNode))
+        return hash(('GLRNode', self.state))
         # return hash(repr(self))
 
     def __eq__(self, other):
         assert isinstance(other, GLRNode)
-        return self.state == other.state and self.astNode == other.astNode  # and self.prev == other.prev
+        return self.state == other.state  # and self.astNodes == other.astNodes  # and self.prev == other.prev
 
     def __repr__(self):
-        # return '[%s; state:%s "%s": %s]' % (
-        #     self.prev, self.state, self.character, '[' + ','.join(str(x) for x in self.astNode) + ']')
-        return '(%s, %s \'%s\')' % (
-            ''.join(str(x) for x in self.prev), self.state, self.character)
+        if self.astNodes and len(self.astNodes) > 1:
+            return '(%s, %s \'%s\'%s)' % (
+                ''.join(str(x) for x in self.prev), self.state, self.astNodes and self.character, len(self.astNodes))
+        if self.astNodes and len(self.astNodes) == 1:
+            return '(%s, %s \'%s\')' % (
+                ''.join(str(x) for x in self.prev), self.state, self.astNodes and self.character)
+        else:
+            assert not self.prev
+            return '(%s)' % (
+                self.state)
+
+    def merge(self, other):
+        """
+
+        :param other:
+        :type other:GLRNode
+        :return:GLRNode
+        """
+        assert isinstance(other, GLRNode)
+        assert self.state == other.state
+        assert self.character == other.character
+        dictionary: Dict[int, FrozenSet[Node]] = dict(self.astNodes)
+        for k, v in other.astNodes.items():
+            if k not in dictionary:
+                dictionary[k] = v
+            else:
+                dictionary[k] |= v
+        return GLRNode(self.prev | other.prev, self.state, dictionary)
 
 
 class GLRBranch:
-    tokens = []
+    tokens: List[CToken] = []
     goto = None
 
     def __init__(self, top: GLRNode, iterationPos: int = 0):
         self._top: GLRNode = top
         self._p: int = iterationPos
+        self.character: str = self._top.character
+
+    @property
+    def state(self):
+        #        assert len(set(x.state for x in self._top)) == 1
+        return self._top.state
 
     def backtraceLR(self, n: int = 0) -> list or GLRNode:
         if n == 0:
@@ -331,59 +367,86 @@ class GLRBranch:
         res.reverse()
         return res
 
-    def backtraceGLR(self, cur: GLRNode, production: Production, rhs: list, pointer=-1):
+    def backtraceGLR(self, cur: GLRNode, production: Production, rhses: List[List[Node]], pointer=-1):
         try:
             if cur.character != production.rhs[pointer]:
-                return []
+                return {}
         except (IndexError, AttributeError):
             # 匹配完文法符号了
             newTop = GLRNode([cur],
                              GLRBranch.goto[cur.state][production.lhs][1],
-                             Node(production.lhs, [rhs[::-1]]),
-                             production.lhs)
-            return GLRBranch(newTop, self._p)
+                             {
+                                 cur.state: frozenset(
+                                     [Node(
+                                         production.lhs,
+                                         [x[:-1][::-1] for x in rhses],
+                                         list(cur.astNodes.values())
+                                     )]
+                                 )})
+            newTop = GLRNode([cur],
+                             GLRBranch.goto[cur.state][production.lhs][1],
+                             {})
+            return {newTop.state: GLRBranch(newTop, self._p)}
 
-        assert isinstance(cur.astNode, Node)
+        # assert isinstance(cur.astNode, Node)
         # assert not (set(listOfAllPossibleRhses).intersection(cur.astNode))
 
-        rhs.append(cur.astNode)
-        res = None
+        for rhs in rhses.values():
+            # 一个GLRBranch下挂一个GLRNode，一个GLRNode下挂一个（（元素类型为Node的）（名为astNodes的））list，
+            # 一个Node下挂一个（（存有该Node所有前驱的）（名为prev的））list，
+            # Node的前驱是
+            assert len(rhs[-1].prev) == 1
+            c = rhs[-1].prev
+            rhs.extend(c)
+
+        res: Dict[int, GLRBranch] = {}
         if len(cur.prev) == 1:
-            res = self.backtraceGLR(cur.prev[0], production, rhs, pointer - 1)
+            for prev in cur.prev:
+                res = self.backtraceGLR(prev, production, rhses, pointer - 1)
         else:
             for pre in cur.prev:
-                candidate = self.backtraceGLR(pre, production, rhs, pointer - 1)
-                if candidate:
-                    if res:
-                        res.top.astNode.merge(candidate.top.astNode)
-                    else:
-                        res=candidate
 
-        rhs.pop()
+                candidate = self.backtraceGLR(pre, production, rhses, pointer - 1)
+                if candidate:
+                    for k, v in candidate.items():
+                        if k not in res:
+                            res[k] = v
+                        else:
+                            res[k].merge(v)
+
+        for rhs in rhses:
+            rhs.pop()
         return res
 
-    def nextToken(self):
+    def nextToken(self) -> CToken:
         if self._p >= len(GLRBranch.tokens):
             return CToken(token_t=eof, value='', position=(-1, -1))
         else:
             return GLRBranch.tokens[self._p]
 
-    def shift(self, state: int, node):
-        return GLRBranch(GLRNode([self._top], state, node, node.character), self._p + 1)
+    def shift(self, state: int, ctoken: CToken):
+        node = Node(ctoken.token_t, (), list(self.top.astNodes.values()), ctoken.value)
+        astNodes = {self.state: frozenset([node])}
+        glrnode = GLRNode([self._top], state, astNodes)
+        return GLRBranch(glrnode, self._p + 1)
 
     def reduce(self, production: Production):
-        res = self.backtraceGLR(self._top, production, [])
+        newTops = self.backtraceGLR(self._top, production,
+                                    [list([x] for x in v) for k, v in self.top.astNodes.items()])
+        res: List[GLRBranch] = []
+        for top in newTops:
+            res.append(newTops[top])
         return res
 
     def merge(self, other):
         assert isinstance(other, GLRBranch)
-        assert other.top == self.top
+        # assert other.top == self.top
         assert other.pos == self.pos
-        self._top.prev += other.top.prev
+        self._top = self._top.merge(other.top)
 
     def __repr__(self):
-        # return 'Branch(%s,%s)' % (self._top.state, self._top.astNode)
-        return str(self._top)
+        # return 'Branch (%s,%s)' % (self._top.state, self._top.astNode)
+        return 'し' + str(self._top)
 
     def __eq__(self, other):
         return self._top == other.top and self._p == other.pos
