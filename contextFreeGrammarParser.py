@@ -12,6 +12,7 @@ class Node:
         self.rhses = (tuple(rhs),) if rhs else ()
         self.__hash = hash((self.character, self.value, self.rhses))
 
+
     def __str__(self):
         if len(self.rhses) == 1:
             return '%s<ul>%s</ul>' % (self.character, ''.join('<li>%s</li>' % i for i in self.rhses[0]))

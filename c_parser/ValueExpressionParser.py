@@ -286,7 +286,7 @@ class GLRNode:
         :param prev:
         :type prev:List[GLRNode]
         """
-        assert len(set(y.character for x in astNodes.values() for y in x)) <= 1
+        assert  len(set(y.character for x in astNodes.values() for y in x)) <= 1
         self.state: int = state
         # if astNode is None:
         #    assert 0
