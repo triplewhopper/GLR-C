@@ -4,21 +4,24 @@ from c_parser.constants import eof, epsilon
 import c_parser.itemset
 from c_parser.item import Item
 from c_parser.grammar import Grammar
+from typing import Dict, List, Set, FrozenSet
 
 
 class CanonicalLR1Collection:
     def __init__(self, grammar: Grammar, ItemSet_t: type = c_parser.itemset.ItemSet):
         self.__G = grammar
         self.__ItemSet_t = ItemSet_t
-        self.__first = {x: {x} for x in grammar.terminal}
-        self.__visit = set()
+        self.__first: Dict[str, Set[str]] = {x: {x} for x in grammar.terminal}
+        self.__visit: Set[str] = set()
         self.__follow = {}
         self.__closure = {}
         self.__goto = {}
         self.indexByInt: dict = None
         self.indexByFrozenSet: dict = {}
         self._collections: set = None
+        print('what?')
         self._calc()
+        print('/what?')
         # print([i for i in sorted(map(len,self._collections))])
         # print([len(i) for i in sorted(self._collections)])
         self.indexByInt = [0] * self.__ItemSet_t.count
@@ -56,6 +59,7 @@ class CanonicalLR1Collection:
         # chars = ('E', 'T', 'F', '(', 'id', ')', '+', '*')
         while q:
             I = q.popleft()
+            print('len=%s' % len(q))
             for X in sorted(self.__G.characters):
                 t = self._goto(I, X)
                 if t and t not in self._collections:

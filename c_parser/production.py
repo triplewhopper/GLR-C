@@ -5,6 +5,7 @@ class Production:
         self.lhs = lhs
         self.rhs = tuple(e[1:-1] if e[0] == '"' and e[-1] == '"' else e for e in rhs)
         self.key = Production.count
+        self.relativeOrder:int=None
         self.__hash = hash((self.lhs, '→') + self.rhs)
         Production.count += 1
 

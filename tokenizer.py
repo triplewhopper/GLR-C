@@ -1,30 +1,31 @@
 import re
-import global_table
 from ctoken import CToken
 import nfa
-
+builtinTypes = {'char', 'double', 'int', 'long', 'short', 'void', 'float', 'signed', 'unsigned', }
 keywords = {'enum', 'struct', 'union', 'for', 'do', 'while', 'break',
             'continue', 'if', 'else', 'goto', 'switch', 'case', 'default', 'return',
             'auto', 'extern', 'register', 'static', 'const', 'sizeof', 'typedef', 'volatile'}
 symbols = {'{', '}', ';', '(', ')', '[', ']', '"', '\'', ',', '=', '+=', '-=', '*=', '/=', '%=', '<<=', '>>=',
            '&=', '^=', '|=', '?', ':', '||', '&&', '|', '^', '&', '==', '!=', '<', '<=',
            '>', '>=', '<<', '>>', '+', '-', '*', '/', '%', '~', '!', '+',
-           '-', '&', '*', '++', '--', '++', '--', '->', '.'}
+           '-', '&', '*', '++', '--', '++', '--', '->', '.', '...'}
 
 identifier = re.compile(r'[a-zA-Z_]\w*')
 keyword = re.compile('|'.join('\\b' + word + '\\b' for word in keywords))
-int32 = re.compile(r"(?P<int32>\d+(?=\b)(?!\.))")
-uint32 = re.compile(r"(?P<uint32>\d+)[uU]\b")
-int64 = re.compile(r'(?P<int64>\d+)(?:ll|LL)\b')
-uint64 = re.compile(r"(?P<uint64>\d+)(?:[uU](?:LL|ll|[Ll]))\b")
-float32 = re.compile(r"(?P<float32>\d+(\.\d*?|\.?\d*e-?\d+)?|\d*(\.\d*?|\.?\d*e-?\d+))(?:[fF]\b)")
-double64 = re.compile(r"(?P<double>\d*(?:\.?\d*e-?\d+|\.\d*))\b")
+int32 = re.compile(r"(\d+(?=\b)(?!\.))")
+uint32 = re.compile(r"(\d+)[uU]\b")
+int64 = re.compile(r'(\d+)(?:ll|LL)\b')
+uint64 = re.compile(r"(\d+)(?:[uU](?:LL|ll|[Ll]))\b")
+float32 = re.compile(r"(\d+(\.\d*?|\.?\d*e-?\d+)?|\d*(\.\d*?|\.?\d*e-?\d+))(?:[fF]\b)")
+double64 = re.compile(r"(\d*(?:\.?\d*e-?\d+|\.\d*))\b")
 comment = re.compile(r"(?:/\*.*?\*/)|(?://[^\n]*)", re.S | re.M)
-octal = re.compile(r"0(?P<octal>[0-7]+)[uU]?(?:ll|LL|[Ll])\b")
-hexadecimal = re.compile(r"0[xX](?P<hexadecimal>[0-9a-fA-F]+)[uU]?(?:ll|LL|[Ll])\b")
+octal = re.compile(r"(0[0-7]+)[uU]?(?:ll|LL|[Ll])\b")
+hexadecimal = re.compile(r"(0[xX][0-9a-fA-F]+)([uU])?(ll|LL|[Ll])?\b")
 
 pos = [1, 0]  # (current-row-number, index of the nearest \n in s)
 
+constantTag='constant'
+identifierTag='identifier'
 
 def defaultreturn(f):
     def execute(s, l, r):
@@ -38,7 +39,7 @@ def defaultreturn(f):
 
 
 @defaultreturn
-def matchNum(s, l, r):
+def matchNum(s: str, l: int, r: int):
     for c in (float32, double64, uint64, int64, uint32, int32, octal, hexadecimal):
         res = c.match(s, l, r)
         if res:
@@ -82,7 +83,7 @@ def matchSymbol(s, l, r):
 @defaultreturn
 def matchType(s, l, r):
     tmp, token = matchIdentifier(s, l, r)
-    if token in global_table.types:
+    if token in builtinTypes:
         return tmp, token
 
 
@@ -121,12 +122,12 @@ def tokenize(s: str):
                 i = r
                 return res
 
-        for f, token_t in ((nfa.matchCharacterLiteral, 'charliteral'),
-                           (nfa.matchStringLiteral, 'stringLiteral'),
-                           (matchNum, 'constant'),
+        for f, token_t in ((nfa.matchCharacterLiteral, constantTag),
+                           (nfa.matchStringLiteral, constantTag),
+                           (matchNum, constantTag),
                            (matchKeyword, None),
                            (matchType, None),
-                           (matchIdentifier, 'identifier'),
+                           (matchIdentifier, identifierTag),
                            (matchSymbol, None),
                            ):
             yie = match(f, token_t)

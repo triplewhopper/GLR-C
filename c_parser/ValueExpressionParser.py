@@ -3,10 +3,13 @@ from ctoken import CToken
 from c_parser.constants import epsilon, eof
 from c_parser.canonicalLR_1_collection import CanonicalLR1Collection
 import pickle
+import tokenizer
 from c_parser.grammar import Grammar
 from c_parser.production import Production
-from contextFreeGrammarParser import Node
-from typing import Dict, List, Tuple, Union, FrozenSet, Iterable, Set
+from c_parser.parse_tree_node import IntermediateParseTreeNode, ConstantAndIdentifierNodeFactory, NullParseTreeNode, \
+    ParseTreeNode, TerminalParseTreeNode
+from c_parser.sbt import SizeBalancedTree
+from typing import Dict, List, Tuple, Union, FrozenSet, Iterable, Set, Type
 import hashlib
 
 
@@ -15,13 +18,8 @@ class ExpressionItemSet(frozenset):
 
     def __init__(self, value):
         self.key = ExpressionItemSet.count
-        self.operator = ""
         self.argc = 0
         ExpressionItemSet.count += 1
-
-    def setConfig(self, operator, argc):
-        self.operator = operator
-        self.argc = argc
 
     def __lt__(self, other):
         return self.key < other.key
@@ -39,6 +37,7 @@ class ValueExpressionParser:
         if oldhash != newhash:
             print("New!")
             self.collection = CanonicalLR1Collection(G, ExpressionItemSet)
+            print('collection got.')
             self.action = None
             self.goto = None
             self.preprocess()
@@ -78,7 +77,7 @@ class ValueExpressionParser:
                     # print('A', end='')
                     if A == self.G.start:
                         # [S' → S•,$]
-                        assert eof not in action[i]
+                        #  assert eof not in action[i]
                         assert b == eof
                         action[i][eof] = {('accept', '')}
                     else:
@@ -202,70 +201,84 @@ class ValueExpressionParser:
 
         GLRBranch.tokens = list(tokens)
         GLRBranch.goto = self.goto
-        initValue = GLRBranch(GLRNode([], 0, [Node('', (), ())]), 0)
-        # initValue = GLRBranch(GLRNode([], 0, []), 0)
-        activeTopStates: Dict[(int, int), GLRBranch] = {(initValue.state, initValue.pos): initValue}
+        initValue = GLRBranch(
+            GLRNode(
+                frozenset(),
+                0,
+                frozenset([NullParseTreeNode()])
+            ),
+            0
+        )
+        activeTopStates: SizeBalancedTree[(int, int), GLRBranch] = \
+            SizeBalancedTree(lambda x, y: x[0] - y[0] if x[0] - y[0] != 0 else (y[1] - x[1]),
+                             {(initValue.pos, initValue.state): initValue})
         ansCount = 0
-        res = ''
+        res: List[IntermediateParseTreeNode] = []
         # f = open('debug.html', 'w')
         while activeTopStates:
             print('activeMap:%d\n' % len(activeTopStates),
                   '\n'.join('%s=> %s' % (k, v) for k, v in activeTopStates.items()), sep='')
-            tmp: Dict[(int, int), List[GLRBranch]] = {}
-            for (top, pos), branch in activeTopStates.items():
-                a: CToken = branch.nextToken()
-                # print('stack:', head.stack)
-                # print('node:', head.nodestack)
-                print('s=%s,a=%s,pos=%s' % (top, a, pos))
-                print('head:', top)
+            maenagai = len(activeTopStates)
+            (pos, top), branch = activeTopStates.popitem()
+            imannagai = len(activeTopStates)
+            assert abs(maenagai - imannagai) == 1
+            a: CToken = branch.nextToken()
+            # print('stack:', head.stack)
+            # print('node:', head.nodestack)
+            print('s=%s,a=%s,pos=%s' % (top, a, pos))
+            print('head:', top)
 
-                try:
-                    if a.token_t in self.action[top]:
-                        curActions = self.action[top][a.token_t]
-                    else:
-                        # assert head.nodestack
-                        raise RuntimeError(
-                            'unexcpected \'%s\' after \'%s\' token, cur = %s, row %s, column %s\n expected tokens are listed as below:\n %s' %
-                            (a, head.backtraceLR().astNode, head.pos, a.position[0], a.position[1],
-                             self.action[top].keys()))
-                    for curAction in curActions:
-                        if curAction[0] == 'shift':
-                            #print(curAction)
-                            newBranch = branch.shift(curAction[1], a)
-                            #print(newBranch)
-                            key = (newBranch.state, newBranch.pos)
+            tmp: Dict[(int, int), List[GLRBranch]] = {}
+            try:
+                if a.token_t in self.action[top]:
+                    curActions = self.action[top][a.token_t]
+                else:
+                    # assert head.nodestack
+                    raise SyntaxError(
+                        'unexcpected \'%s\' after \'%s\' token, cur = %s, row %s, column %s\n expected tokens are listed as below:\n %s' %
+                        (a, branch.top.parseTreeNodes, branch.pos, a.position[0], a.position[1],
+                         self.action[top].keys()))
+
+                for curAction in curActions:
+                    if curAction[0] == 'shift':
+                        print(curAction)
+                        newBranch = branch.shift(curAction[1], a)
+                        print(newBranch)
+                        key = (newBranch.pos, newBranch.state)
+                        if key not in tmp:
+                            tmp[key] = [newBranch]
+                        else:
+                            tmp[key].append(newBranch)
+                        print(tmp)
+                    elif curAction[0] == 'reduce':
+                        print(curAction)
+                        index = curAction[1]
+                        newBranches: List[GLRBranch] = branch.reduce(self.G[index])
+                        print(newBranches)
+                        for newBranch in newBranches:
+                            key = (newBranch.pos, newBranch.state)
                             if key not in tmp:
                                 tmp[key] = [newBranch]
                             else:
                                 tmp[key].append(newBranch)
-                            #print(tmp)
-                        elif curAction[0] == 'reduce':
-                            #print(curAction)
-                            index = curAction[1]
-                            newBranches: List[GLRBranch] = branch.reduce(self.G[index])
-                            # print(newBranches)
-                            for newBranch in newBranches:
-                                key = (newBranch.state, newBranch.pos)
-                                if key not in tmp:
-                                    tmp[key] = [newBranch]
-                                else:
-                                    tmp[key].append(newBranch)
-                            print(self.G[index])
-                        elif curAction[0] == 'accept':
-                            print('accept')
-                            raise StopIteration()
-                        else:
-                            assert 0
-                except RuntimeError as e:
-                    print('この分支は失敗してしまいました。')
-                except StopIteration as e:
-                    print('成功しました。次は分析樹です')
-                    # assert len(branch.top) == 1
-                    res += ''.join(str(x) for x in branch.top.astNodes)
-                    ansCount += 1
-            #print('tmp:%d\n' % len(tmp), '\n'.join('%s=> %s' % (k, v) for k, v in tmp.items()), sep='')
-            print()
-            activeTopStates.clear()
+                        print(self.G[index])
+                    elif curAction[0] == 'accept':
+                        print('accept')
+                        raise StopIteration()
+                    else:
+                        assert 0
+            except SyntaxError as e:
+                print(e)
+                print('この分支は失敗してしまいました。')
+            except StopIteration as e:
+                print('成功しました。次は分析樹です')
+                # assert len(branch.top) == 1
+                tot: IntermediateParseTreeNode = None
+                for node in branch.top.parseTreeNodes:
+                    tot = node.merge(tot)
+                res.append(tot)
+                ansCount += 1
+
             for key in tmp:
                 assert len(key) == 2
                 branches: List[GLRBranch] = tmp[key]
@@ -273,58 +286,60 @@ class ValueExpressionParser:
                 if len(branches) >= 2:
                     for i in range(1, len(branches)):
                         branches[0].merge(branches[i])
-                assert key not in activeTopStates
-                activeTopStates[key] = branches[0]
+                if key not in activeTopStates:
+                    activeTopStates[key] = branches[0]
+                else:
+                    activeTopStates[key].merge(branches[0])
+            print('tmp:%d\n' % len(tmp), '\n'.join('%s=> %s' % (k, v) for k, v in tmp.items()), sep='')
+            print()
+            # activeTopStates.clear()
 
         print('ansCount=', ansCount)
-        return res
+        tot: IntermediateParseTreeNode = None
+        for node in res:
+            tot = node.merge(tot)
+        return tot
 
 
 class GLRNode:
-    def __init__(self, prev, state: int, astNodes):
+    def __init__(self, prev, state: int, parseTreeNodes):
         """
 
         :param prev
         :param state:
-        :param astNodes:
-        :type prev:Iterable[GLRNode]
+        :param parseTreeNodes:
+        :type prev:frozenset[GLRNode]
         :type state:int
-        :type astNodes:Iterable[Node]
+        :type parseTreeNodes:frozenset[ParseTreeNode]
         """
-        # assert len(set(y.character for x in astNodes.values() for y in x)) <= 1
-        assert len(set(x.character for x in astNodes)) <= 1
+        assert len(set(x.character for x in parseTreeNodes)) <= 1
+        assert isinstance(prev, frozenset)
+        assert isinstance(state, int)
+        assert isinstance(parseTreeNodes, frozenset)
         self.state: int = state
-        # if astNode is None:
-        #    assert 0
-        # self.astNode: list = list(astNode) if isinstance(astNode, set) else [astNode]
-        # self.asrNodes是按照node的prev跟self.prev中的哪一个方向一致来 分组的。
-        self.astNodes: FrozenSet[Node] = frozenset(astNodes)
+        self.parseTreeNodes: FrozenSet[ParseTreeNode] = frozenset(parseTreeNodes)
         self.character: str = ''
-        for node in self.astNodes:
+        for node in self.parseTreeNodes:
             self.character = node.character
             break
-        # for v in astNodes.values():
-        #     for node in v:
-        #         self.character = node.character
-        #         break
-        #     break
         self.prev: FrozenSet[GLRNode] = frozenset(prev)
 
     def __hash__(self):
-        return hash(('GLRNode', self.state, self.astNodes))
+        return hash((self.__class__, self.state, self.parseTreeNodes))
         # return hash(repr(self))
 
     def __eq__(self, other):
         assert isinstance(other, GLRNode)
-        return self.state == other.state  # and self.astNodes == other.astNodes  # and self.prev == other.prev
+        return self.state == other.state  # and self.parseTreeNodes == other.parseTreeNodes  # and self.prev == other.prev
 
     def __repr__(self):
-        if self.astNodes and len(self.astNodes) > 1:
+        if self.parseTreeNodes and len(self.parseTreeNodes) > 1:
             return '(%s, %s \'%s\'%s)' % (
-                ''.join(str(x) for x in self.prev), self.state, self.astNodes and self.character, len(self.astNodes))
-        if self.astNodes and len(self.astNodes) == 1:
+                ''.join(str(x) for x in self.prev), self.state, self.parseTreeNodes and self.character,
+                len(self.parseTreeNodes))
+        if self.parseTreeNodes and len(self.parseTreeNodes) == 1:
             return '(%s, %s \'%s\')' % (
-                ''.join(str(x) for x in self.prev), self.state, self.astNodes and self.character)
+                ''.join(str(x) for x in self.prev), self.state, self.parseTreeNodes and self.character)
         else:
             assert not self.prev
             return '(%s)' % (
@@ -340,21 +355,8 @@ class GLRNode:
         assert isinstance(other, GLRNode)
         assert self.state == other.state
         assert self.character == other.character
-        # dictionary: Dict[int, FrozenSet[Node]] = dict(self.astNodes)
-        # for k, v in other.astNodes.items():
-        #     if k not in dictionary:
-        #         dictionary[k] = v
-        #     else:
-        #         dictionary[k] |= v
 
-        intersection = self.prev & other.prev
-        c: bool = len(intersection) == 0 or len(intersection) == 1 and GLRNode([], 0,
-                                                                               [Node('', (), [])]) in intersection
-        #assert c
-        # assert len(frozenset(self.astNodes).intersection(other.astNodes)) == 0
-
-        return GLRNode(self.prev | other.prev, self.state, self.astNodes | other.astNodes)
-        # return GLRNode(self.prev | other.prev, self.state, dictionary)
+        return GLRNode(self.prev | other.prev, self.state, self.parseTreeNodes | other.parseTreeNodes)
 
 
 class GLRBranch:
@@ -371,29 +373,23 @@ class GLRBranch:
         #        assert len(set(x.state for x in self._top)) == 1
         return self._top.state
 
-    def backtraceLR(self, n: int = 0) -> list or GLRNode:
-        if n == 0:
-            return self._top
-        assert n >= 1
-        res = []
-        p = self.backtraceLR()
-        for i in range(n):
-            assert p
-            res.append(p)
-            p = p.prev
-        res.reverse()
-        return res
-
-    def backtraceGLR(self, cur: GLRNode, production: Production, nodes: Dict[FrozenSet[Node], Node], pointer=-1):
-        try:  # 単独にastNodeに深度優先捜索をやってみる
+    def backtraceGLR(self, cur: GLRNode, production: Production,
+                     nodes: Dict[FrozenSet[ParseTreeNode], ParseTreeNode],
+                     pointer=-1):
+        try:
 
             if cur.character != production.rhs[pointer]:
                 return {}
         except (IndexError, AttributeError):
             # 匹配完文法符号了
-            newTop = GLRNode([cur],
+            newTop = GLRNode(frozenset([cur]),
                              GLRBranch.goto[cur.state][production.lhs][1],
-                             [nodes[prev] for prev in nodes if prev.issubset(cur.astNodes)])
+                             frozenset([nodes[prev]
+                                        for prev in nodes
+                                        if prev.issubset(cur.parseTreeNodes)
+                                        ]
+                                       )
+                             )
             return {newTop.state: GLRBranch(newTop, self._p)}
         res: Dict[int, GLRBranch] = {}
         if len(cur.prev) == 1:
@@ -411,29 +407,32 @@ class GLRBranch:
                             res[k].merge(v)
         return res
 
-    def dfs(self, cur: Node, production: Production, rhs: List[Node], pointer=-1):
-        try:  # 単独にstNodeに深度優先捜索をやってみる
+    def dfs(self, cur: ParseTreeNode, production: Production, rhs: List[ParseTreeNode],
+            pointer=-1):
+        try:  # 単独にparseTreeNodeに深度優先捜索をやってみる
 
             if cur.character != production.rhs[pointer]:
                 return []
         except (IndexError, AttributeError):
             # 匹配完文法符号了
 
+            module = __import__('c_parser.parse_tree_node')
+
+            Node: Type[IntermediateParseTreeNode] = getattr(module, production.lhs)
+            relataveOrders = {tuple(rhs[::-1]): production.relativeOrder}
+
             return [Node(
-                production.lhs,
-                [rhs[::-1]],
-                [cur])]
+                production.lhs,  # character
+                frozenset(relataveOrders.keys()),  # rhses
+                relataveOrders,  # relativeOrders
+                [cur])]  # prev
         rhs.append(cur)
-        res: List[Node] = []
-        if len(cur.prev) == 1:
-            for prev in cur.prev:
-                res = self.dfs(prev, production, rhs, pointer - 1)
-                break
-        else:
-            for pre in cur.prev:
-                candidate = self.dfs(pre, production, rhs, pointer - 1)
-                if candidate:
-                    res.extend(candidate)
+        res: List[IntermediateParseTreeNode] = []
+
+        for pre in cur.prev:
+            candidate = self.dfs(pre, production, rhs, pointer - 1)
+            if candidate:
+                res.extend(candidate)
         rhs.pop()
         return res
 
@@ -444,38 +443,43 @@ class GLRBranch:
             return GLRBranch.tokens[self._p]
 
     def shift(self, state: int, ctoken: CToken):
-        node = Node(ctoken.token_t, (), self.top.astNodes, ctoken.value)
-        astNodes = [node]
-        glrnode = GLRNode([self._top], state, astNodes)
+        if ctoken.token_t in {tokenizer.constantTag, tokenizer.identifierTag}:
+            node = ConstantAndIdentifierNodeFactory(ctoken.token_t, self.top.parseTreeNodes, ctoken.value)
+        else:
+            node = TerminalParseTreeNode(ctoken.token_t, self.top.parseTreeNodes, ctoken.value)
+        glrnode = GLRNode(
+            frozenset([self._top]),  # prev
+            state,  # state
+            frozenset([node])  # parseTreeNodes
+        )
         return GLRBranch(glrnode, self._p + 1)
 
     def reduce(self, production: Production):
 
-        def groupByPrev(nodes: List[Node]) -> Dict[FrozenSet[Node], Node]:
-            res: Dict[FrozenSet[Node], List[Node]] = {}
+        def groupByPrev(nodes: List[IntermediateParseTreeNode]) -> Dict[FrozenSet[ParseTreeNode], ParseTreeNode]:
+            res: Dict[FrozenSet[ParseTreeNode], List[IntermediateParseTreeNode]] = {}
             for node in nodes:
                 if node.prev not in res:
                     res[node.prev] = [node]
                 else:
                     res[node.prev].append(node)
 
-            def merge(nodes: List[Node]):
+            def merge(nodes: List[IntermediateParseTreeNode]) -> ParseTreeNode:
                 assert nodes
-                assert isinstance(nodes[0], Node)
+                assert isinstance(nodes[0], IntermediateParseTreeNode)
                 res = None
                 for node in nodes:
                     res = node.merge(res)
                 return res
 
             for key in res:
-                res[key] = merge(res[key])
+                res[key]: IntermediateParseTreeNode = merge(res[key])
+                assert isinstance(res[key], IntermediateParseTreeNode)
             return res
 
-        try:
-            newNodes: List[Node] = list(x for node in self.top.astNodes for x in self.dfs(node, production, []))
-        except TypeError as e:
-            print(e)
-            assert 0
+        newNodes: List[IntermediateParseTreeNode] = list(x
+                                                         for node in self.top.parseTreeNodes
+                                                         for x in self.dfs(node, production, []))
         assert newNodes
         newBranches = self.backtraceGLR(self._top, production, groupByPrev(newNodes))
         return list(newBranches.values())

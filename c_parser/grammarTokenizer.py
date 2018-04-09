@@ -2,13 +2,14 @@ import re
 import collections
 import nfa
 import c_parser.production
+from typing import List, Tuple
 
 epsilon = 'ε'
 eof = '$'
 
 Token = collections.namedtuple('Token', ['token_t', 'value', 'position'])
 tokenTable = {
-    'nude': re.compile(r"([a-zA-Z_]\w*)"),# a nude can be a terminal either a intermediate
+    'nude': re.compile(r"([a-zA-Z_]\w*)"),  # a nude can be a terminal either a intermediate
     '->': re.compile(r'(->)'),
     '|': re.compile(r'(\|)'),
     # 't': re.compile(r"'([^']*)'"),
@@ -27,9 +28,9 @@ nextline = re.compile(r'\n')
 def tokenizer(s: str):
     i = 0
 
-    pos = [1, 0]  # (current-row-number, index of the nearest \n in s)
-    buffer = []
-    length = len(s)
+    pos = [1, 0]  # (current-line-number, index of the nearest \n in s)
+    buffer: List[Token] = []
+    length: int = len(s)
 
     def update(i, x):
         if x: return x.end()
@@ -46,9 +47,10 @@ def tokenizer(s: str):
             break
 
         r = update(i, space.match(s, i))
-        if r > i:flag = True
+        if r > i:
+            flag = True
         i = r
-        res, value = nfa.matchStringLiteral(s, i, length)
+        res, value = nfa.matchGrammarStringLiteral(s, i, length)
         if value:
             flag = True
             buffer.append(Token('terminal', value, (pos[0], i + 1 - pos[1])))
@@ -68,7 +70,7 @@ def tokenizer(s: str):
                 buffer.append(Token(candidate, res.group(1), (pos[0], i + 1 - pos[1])))
                 i = res.end()
         if not flag:
-            raise RuntimeError('unkown character \'%s\' at row %s, column %s: %s' % (
+            raise RuntimeError('unkown character \'%s\' at line %s, column %s:\n %s' % (
                 s[i], pos[0], i + 1 - pos[1], s[max(i - 10, 0):i + 10]))
     return buffer
 
