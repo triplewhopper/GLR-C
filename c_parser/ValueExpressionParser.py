@@ -216,8 +216,8 @@ class ValueExpressionParser:
         res: List[IntermediateParseTreeNode] = []
         # f = open('debug.html', 'w')
         while activeTopStates:
-            print('activeMap:%d\n' % len(activeTopStates),
-                  '\n'.join('%s=> %s' % (k, v) for k, v in activeTopStates.items()), sep='')
+            # print('activeMap:%d\n' % len(activeTopStates),
+            #      '\n'.join('%s=> %s' % (k, v) for k, v in activeTopStates.items()), sep='')
             maenagai = len(activeTopStates)
             (pos, top), branch = activeTopStates.popitem()
             imannagai = len(activeTopStates)
@@ -225,15 +225,14 @@ class ValueExpressionParser:
             a: CToken = branch.nextToken()
             # print('stack:', head.stack)
             # print('node:', head.nodestack)
-            print('s=%s,a=%s,pos=%s' % (top, a, pos))
-            print('head:', top)
+            # print('s=%s,a=%s,pos=%s' % (top, a, pos))
+            # print('head:', top)
 
             tmp: Dict[(int, int), List[GLRBranch]] = {}
             try:
                 if a.token_t in self.action[top]:
                     curActions = self.action[top][a.token_t]
                 else:
-                    # assert head.nodestack
                     raise SyntaxError(
                         'unexcpected \'%s\' after \'%s\' token, cur = %s, row %s, column %s\n expected tokens are listed as below:\n %s' %
                         (a, branch.top.parseTreeNodes, branch.pos, a.position[0], a.position[1],
@@ -241,27 +240,27 @@ class ValueExpressionParser:
 
                 for curAction in curActions:
                     if curAction[0] == 'shift':
-                        print(curAction)
+                        # print(curAction)
                         newBranch = branch.shift(curAction[1], a)
-                        print(newBranch)
+                        # print(newBranch)
                         key = (newBranch.pos, newBranch.state)
                         if key not in tmp:
                             tmp[key] = [newBranch]
                         else:
                             tmp[key].append(newBranch)
-                        print(tmp)
+                        # print(tmp)
                     elif curAction[0] == 'reduce':
-                        print(curAction)
+                        # print(curAction)
                         index = curAction[1]
                         newBranches: List[GLRBranch] = branch.reduce(self.G[index])
-                        print(newBranches)
+                        # print(newBranches)
                         for newBranch in newBranches:
                             key = (newBranch.pos, newBranch.state)
                             if key not in tmp:
                                 tmp[key] = [newBranch]
                             else:
                                 tmp[key].append(newBranch)
-                        print(self.G[index])
+                        # print(self.G[index])
                     elif curAction[0] == 'accept':
                         print('accept')
                         raise StopIteration()
@@ -290,8 +289,8 @@ class ValueExpressionParser:
                     activeTopStates[key] = branches[0]
                 else:
                     activeTopStates[key].merge(branches[0])
-            print('tmp:%d\n' % len(tmp), '\n'.join('%s=> %s' % (k, v) for k, v in tmp.items()), sep='')
-            print()
+            # print('tmp:%d\n' % len(tmp), '\n'.join('%s=> %s' % (k, v) for k, v in tmp.items()), sep='')
+            # print()
             # activeTopStates.clear()
 
         print('ansCount=', ansCount)
@@ -330,7 +329,8 @@ class GLRNode:
 
     def __eq__(self, other):
         assert isinstance(other, GLRNode)
-        return self.state == other.state  # and self.parseTreeNodes == other.parseTreeNodes  # and self.prev == other.prev
+        return self.state == other.state
+        # and self.parseTreeNodes == other.parseTreeNodes  # and self.prev == other.prev
 
     def __repr__(self):
         if self.parseTreeNodes and len(self.parseTreeNodes) > 1:
@@ -416,9 +416,11 @@ class GLRBranch:
         except (IndexError, AttributeError):
             # 匹配完文法符号了
 
-            module = __import__('c_parser.parse_tree_node')
+            #module = __import__('c_parser.parse_tree_node')
+            #Node: Type[IntermediateParseTreeNode] = getattr(module, production.lhs)
+            module=__import__('playground')
+            Node=module.table[production.key]
 
-            Node: Type[IntermediateParseTreeNode] = getattr(module, production.lhs)
             relataveOrders = {tuple(rhs[::-1]): production.relativeOrder}
 
             return [Node(
@@ -459,6 +461,7 @@ class GLRBranch:
         def groupByPrev(nodes: List[IntermediateParseTreeNode]) -> Dict[FrozenSet[ParseTreeNode], ParseTreeNode]:
             res: Dict[FrozenSet[ParseTreeNode], List[IntermediateParseTreeNode]] = {}
             for node in nodes:
+                assert isinstance(node, ParseTreeNode)
                 if node.prev not in res:
                     res[node.prev] = [node]
                 else:

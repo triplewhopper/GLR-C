@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from c_parser import grammarTokenizer
 from c_parser.constants import eof
@@ -18,7 +18,7 @@ class Grammar:
 
     def __init__(self, *filename):
         s: str = self.__readFromFile(*filename)
-        self.sha1 = hashlib.sha1(s.encode('utf-8')).hexdigest()
+        self.sha1: str = hashlib.sha1(s.encode('utf-8')).hexdigest()
         s: List[Token] = grammarTokenizer.tokenizer(s)
         assert len(s) > 3
         assert s[0].token_t == 'nude'
@@ -62,12 +62,10 @@ class Grammar:
         assert start in lhs.keys()
 
         self.productions = [Production(l, r) for l in lhs for r in lhs[l]]
-        self.lhs: Dict[str, List[int]] = {}
+        self.lhs: defaultdict[str, List[int]] = defaultdict(list)
         for i, p in enumerate(self.productions):
-            if p.lhs not in self.lhs:
-                self.lhs[p.lhs] = []
             self.lhs[p.lhs].append(i)
-            p.relativeOrder=len(self.lhs[p.lhs])
+            p.relativeOrder = len(self.lhs[p.lhs])
 
         print(self.productions)
         self.intermediate: FrozenSet[str] = frozenset(lhs.keys())
@@ -84,10 +82,11 @@ class Grammar:
         return self.__start
 
     def __str__(self):
-        return 'start: ' + self.start + '\n' + \
-               'intermediates: ' + str(sorted(self.intermediate)) + '\n' + \
-               'terminals: ' + str(sorted(self.terminal)) + '\n' + \
-               '\n'.join(str(i) for i in self.productions) + '\n'
+        return f'''
+            start: {self.start}
+            intermediates: {sorted(self.intermediate)}
+            terminals: {sorted(self.terminal)}''' \
+               + "\n".join(str(i) for i in self.productions) + '\n'
 
     def __len__(self):
         return len(self.productions)
@@ -95,6 +94,17 @@ class Grammar:
     def __getitem__(self, item):
         return self.productions[item]
 
-    def allProductionsStartingWith(self, x):
+    def allProductionsStartingWith(self, x: str):
         assert x in self.intermediate
         return self.lhs[x]
+
+
+if __name__ == '__main__':
+    g = Grammar('../std.txt')
+    for p in g.productions:
+        print(f'''
+class {p.lhs}(metaclass=LHS):
+    key={p.key}
+    relativeOrder={p.relativeOrder}
+    rhs={p.rhs}
+''')
