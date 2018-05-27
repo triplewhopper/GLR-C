@@ -1,0 +1,370 @@
+TranslationUnit
+Declaration ->
+    DeclarationSpecifiers InitDeclaratorList";"
+   |DeclarationSpecifiers ";"
+
+DeclarationSpecifiers ->
+     StorageClassSpecifier DeclarationSpecifiers
+    |StorageClassSpecifier
+
+    |TypeSpecifier DeclarationSpecifiers
+    |TypeSpecifier
+
+    |TypeQualifier DeclarationSpecifiers
+    |TypeQualifier
+
+    |FunctionSpecifier DeclarationSpecifiers
+    |FunctionSpecifier
+
+InitDeclaratorList ->
+     InitDeclarator
+    |InitDeclarator "," InitDeclaratorList
+
+InitDeclarator ->
+     Declarator
+    |Declarator "=" Initializer
+
+
+StorageClassSpecifier->
+     typedef
+    |extern
+    |static
+    |auto
+    |register
+
+TypeSpecifier->
+ void
+|char
+|short
+|int
+|long
+|float
+|double
+|signed
+|unsigned
+|_Bool
+|_Complex
+|StructOrUnionSpecifier
+|EnumSpecifier
+|TypedefName
+
+TypeQualifier-> const|restrict|volatile
+
+StructOrUnionSpecifier->
+     StructOrUnion identifier "{" StructDeclarationList "}"
+    |StructOrUnion            "{" StructDeclarationList "}"
+    |StructOrUnion identifier
+
+StructOrUnion -> struct|union
+
+StructDeclarationList->
+     StructDeclaration
+    |StructDeclaration StructDeclarationList
+
+StructDeclaration->
+     SpecifierQualifierList StructDeclaratorList ";"
+
+SpecifierQualifierList->
+     TypeSpecifier SpecifierQualifierList
+    |TypeSpecifier
+    |TypeQualifier SpecifierQualifierList
+    |TypeQualifier
+
+StructDeclaratorList->
+     StructDeclarator
+    |StructDeclarator "," StructDeclaratorList
+StructDeclarator->
+     Declarator
+    |Declarator ":" ConstantExpression
+    |":" ConstantExpression
+
+EnumSpecifier->
+     enum identifier "{" EnumeratorList "}"
+    |enum "{" EnumeratorList "}"
+    |enum identifier "{" EnumeratorList "," "}"
+    |enum "{" EnumeratorList "," "}"
+    |enum identifier
+
+EnumeratorList->
+     Enumerator
+    |EnumeratorList "," Enumerator
+
+Enumerator->
+     EnumerationConstant
+    |EnumerationConstant "=" ConstantExpression
+
+Declarator ->
+     Pointer DirectDeclarator
+    |DirectDeclarator
+
+DirectDeclarator->
+     identifier
+    |"(" Declarator ")"
+    |DirectDeclarator "[" "]"
+    |DirectDeclarator "[" TypeQualifierList AssignmentExpression "]"
+    |DirectDeclarator "["                   AssignmentExpression "]"
+    |DirectDeclarator "[" TypeQualifierList                      "]"
+    |DirectDeclarator "[" static TypeQualifierList AssignmentExpression "]"
+    |DirectDeclarator "[" static                   AssignmentExpression "]"
+    |DirectDeclarator "[" TypeQualifierList static AssignmentExpression "]"
+    |DirectDeclarator "[" TypeQualifierList "*" "]"
+    |DirectDeclarator "["                   "*" "]"
+    |DirectDeclarator "(" ParameterTypeList ")"
+    |DirectDeclarator "(" IdentifierList ")"
+    |DirectDeclarator "("  ")"
+
+Pointer->
+     "*"
+    |"*"  TypeQualifierList
+    |"*" TypeQualifierList Pointer
+    |"*" Pointer
+
+TypeQualifierList->
+     TypeQualifier
+    |TypeQualifier TypeQualifierList
+
+ParameterTypeList->
+     ParameterList
+    |ParameterList "," "..."
+
+ParameterList->
+     ParameterDeclaration
+    |ParameterDeclaration "," ParameterList
+
+ParameterDeclaration->
+     DeclarationSpecifiers Declarator
+    |DeclarationSpecifiers AbstractDeclarator
+    |DeclarationSpecifiers
+    
+IdentifierList->
+     identifier
+    |identifier "," IdentifierList
+
+Typename->
+     SpecifierQualifierList AbstractDeclarator
+    |SpecifierQualifierList
+
+
+AbstractDeclarator->
+     Pointer
+    |Pointer DirectAbstractDeclarator
+    |        DirectAbstractDeclarator
+
+
+DirectAbstractDeclarator->
+     "(" AbstractDeclarator ")"
+    |DirectAbstractDeclarator "[" TypeQualifierList AssignmentExpression "]"
+    |DirectAbstractDeclarator "[" AssignmentExpression "]"
+    |DirectAbstractDeclarator "[" TypeQualifierList "]"
+    |DirectAbstractDeclarator "["  "]"
+
+    |DirectAbstractDeclarator "[" static TypeQualifierList AssignmentExpression "]"
+    |DirectAbstractDeclarator "[" static AssignmentExpression "]"
+    |DirectAbstractDeclarator "[" TypeQualifierList static AssignmentExpression "]"
+    |DirectAbstractDeclarator "[" "*" "]"
+    |DirectAbstractDeclarator "(" ParameterTypeList ")"
+    |DirectAbstractDeclarator "("  ")"
+
+    |"[" TypeQualifierList AssignmentExpression "]"
+    |"[" AssignmentExpression "]"
+    |"[" TypeQualifierList "]"
+    |"["  "]"
+
+    |"[" static TypeQualifierList AssignmentExpression "]"
+    |"[" static AssignmentExpression "]"
+    |"[" TypeQualifierList static AssignmentExpression "]"
+    |"[" "*" "]"
+    |"(" ParameterTypeList ")"
+    |"("  ")"
+
+TypedefName-> identifier
+FunctionSpecifier-> inline
+
+
+Initializer ->
+     AssignmentExpression
+    |"{" InitializerList "}"
+    |"{" InitializerList "," "}"
+
+InitializerList->
+      Designation Initializer
+     |Initializer
+     |InitializerList "," Designation Initializer
+     |InitializerList ","             Initializer
+
+Designation->
+    DesignatorList "="
+    
+DesignatorList->
+     Designator
+    |Designator DesignatorList
+    
+Designator->
+     "[" ConstantExpression "]"
+    |"." identifier
+
+
+PrimaryExpression ->
+    identifier
+   |constant
+   |stringLiteral
+   |"(" Expression ")"
+PostfixExpression ->
+    PrimaryExpression
+   |PostfixExpression "[" Expression "]"
+   |PostfixExpression "("  ")"
+   |PostfixExpression "(" ArgumentExpressionList ")"
+   |PostfixExpression "." identifier
+   |PostfixExpression "->" identifier
+   |PostfixExpression "++"
+   |PostfixExpression "--"
+   | "(" Typename ")" "{" InitializerList "}"
+   | "(" Typename ")" "{" InitializerList "," "}"
+
+ArgumentExpressionList ->
+    AssignmentExpression
+   |ArgumentExpressionList "," AssignmentExpression
+UnaryExpression ->
+    PostfixExpression
+   |"++" UnaryExpression
+   |"--" UnaryExpression
+   |UnaryOp CastExpression
+   |"sizeof" UnaryExpression
+   |"sizeof" "("Typename")"
+UnaryOp ->
+    "&"|"*"|"+"|"-"|"~"|"!"
+CastExpression -> UnaryExpression
+           |"("Typename")" CastExpression
+MultiplicativeExpression ->
+    CastExpression
+   |MultiplicativeExpression "*" CastExpression
+   |MultiplicativeExpression "/" CastExpression
+   |MultiplicativeExpression "%" CastExpression
+AdditiveExpression ->
+    MultiplicativeExpression
+   |AdditiveExpression "+" MultiplicativeExpression
+   |AdditiveExpression "-" MultiplicativeExpression
+ShiftExpression->
+    AdditiveExpression
+   |ShiftExpression "<<" AdditiveExpression
+   |ShiftExpression ">>" AdditiveExpression
+RelationalExpression->
+    ShiftExpression
+   |RelationalExpression "<" ShiftExpression
+   |RelationalExpression ">" ShiftExpression
+   |RelationalExpression "<=" ShiftExpression
+   |RelationalExpression ">=" ShiftExpression
+EqualityExpression->
+    RelationalExpression
+   |EqualityExpression "==" RelationalExpression
+   |EqualityExpression "!=" RelationalExpression
+ANDExpression ->
+    EqualityExpression
+   |ANDExpression "&" EqualityExpression
+ExclusiveORExpression->
+    ANDExpression
+   |ExclusiveORExpression "^" ANDExpression
+InclusiveORExpression->
+    ExclusiveORExpression
+   |InclusiveORExpression "|" ExclusiveORExpression
+LogicalANDExpression->
+    InclusiveORExpression
+   |LogicalANDExpression "&&" InclusiveORExpression
+LogicalORExpression->
+    LogicalANDExpression
+   |LogicalORExpression "||" LogicalANDExpression
+ConditionalExpression->
+    LogicalORExpression
+   |LogicalORExpression "?" Expression ":" ConditionalExpression
+AssignmentExpression->
+     ConditionalExpression
+    |UnaryExpression AssignmentOp AssignmentExpression
+AssignmentOp->
+   "="
+   |"*="
+   |"/="
+   |"%="
+   |"+="
+   |"-="
+   |"<<="
+   |">>="
+   |"&="
+   |"^="
+   |"|="
+Expression ->
+    AssignmentExpression
+   |Expression "," AssignmentExpression
+
+ConstantExpression-> ConditionalExpression
+
+
+Statement->
+     LabeledStatement
+    |CompoundStatement
+    |ExpressionStatement
+    |SelectionStatement
+    |IterationStatement
+    |JumpStatement
+
+LabeledStatement->
+     identifier ":" Statement
+    |case ConstantExpression ":" Statement
+    |default ":" Statement
+
+CompoundStatement->
+     "{" BlockItemList "}"
+    |"{" "}"
+
+BlockItemList->
+     BlockItem
+    |BlockItem BlockItemList
+
+BlockItem->
+     Declaration
+    |Statement
+
+ExpressionStatement->
+     Expression ";"
+    | ";"
+
+SelectionStatement->
+     if "(" Expression ")" Statement
+    |if "(" Expression ")" Statement else Statement
+    |switch "(" Expression ")" Statement
+
+IterationStatement->
+     while "(" Expression ")" Statement
+    |do Statement while "(" Expression ")" ";"
+    |for"(" Expression ";" Expression ";" Expression ")" Statement
+    |for"(" Expression ";" Expression ";"            ")" Statement
+    |for"(" Expression ";"            ";" Expression ")" Statement
+    |for"("            ";" Expression ";" Expression ")" Statement
+    |for"(" Expression ";"            ";"            ")" Statement
+    |for"("            ";" Expression ";"            ")" Statement
+    |for"("            ";"            ";" Expression ")" Statement
+    |for"("            ";"            ";"            ")" Statement
+    |for"(" Declaration Expression ";" Expression ")" Statement
+    |for"(" Declaration Expression ";" ")" Statement
+    |for"(" Declaration ";" ")" Statement
+
+JumpStatement->
+     goto identifier ";"
+    |continue ";"
+    |break ";"
+    |return Expression ";"
+    |return ";"
+
+
+FunctionDefinition->
+     DeclarationSpecifiers Declarator  CompoundStatement
+
+DeclarationList->
+     Declaration
+    |Declaration DeclarationList
+    
+TranslationUnit->
+     ExternalDeclaration
+    |ExternalDeclaration TranslationUnit
+ExternalDeclaration->
+     FunctionDefinition
+    |Declaration
