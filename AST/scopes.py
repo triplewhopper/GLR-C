@@ -2,6 +2,7 @@ from collections import OrderedDict
 from AST import nodes, c_type
 from Lexer import ctoken
 import mem
+
 from abc import abstractmethod
 from typing import Generic, TypeVar, Optional, Union, Dict, List, Set
 
@@ -50,7 +51,7 @@ class ValueDeclScope(IParent['ValueDeclScope']):
     def __init__(self, parent: Optional['ValueDeclScope'] = None):
         super().__init__(parent)
         self.__map: Dict[str, 'nodes.ValueDecl'] = OrderedDict()
-        self.__offset = 0 if parent is None else parent.offset
+        self.__offset = 1 if parent is None else parent.offset
 
     def getValueDecl(self, tag: str) -> 'nodes.ValueDecl':
         if tag in self.__map:

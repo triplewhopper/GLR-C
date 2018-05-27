@@ -35,10 +35,10 @@ def param(*types):
 
 
 class Unpacker:
-    i1 = struct.Struct('c')
+    i1 = struct.Struct('b')
     i4 = struct.Struct('i')
     i8 = struct.Struct('q')
-    u1 = struct.Struct('c')
+    u1 = struct.Struct('B')
     u4 = struct.Struct('I')
     u8 = struct.Struct('Q')
     f4 = struct.Struct('f')

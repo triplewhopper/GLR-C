@@ -85,7 +85,7 @@ class Type:
     #
     # def isIncompleteArrayType(self):
     #     return isinstance(self, IncompleteArrayType)
-    def typeCode(self)->str:
+    def typeCode(self) -> str:
         raise NotImplementedError(self.__class__.__name__)
 
     # def typeid(self):
@@ -129,7 +129,7 @@ class Type:
     #     return False
 
     def isCharType(self):
-        return any(self.isCompatibleWith(c()) for c in (Char, UChar))
+        return isinstance(self, (Char, UChar))
 
     def isScalarType(self):
         return self.isArithmeticType() or isinstance(self, Pointer)
@@ -292,7 +292,7 @@ class PrimitiveType(Type):
         return not (self == other)
 
     def rank(self):
-        raise NotImplementedError()
+        raise NotImplementedError(self.__class__.__name__)
 
     # def isCompatibleWith(self, other):
     #     if isinstance(other, QualifiedType):
@@ -326,8 +326,8 @@ class Char(PrimitiveType):
     def typeCode(self):
         return 'i8'
 
-    # def rank(self):
-    #     return 1
+    def rank(self):
+        return 1
 
     def typeid(self):
         return 1
@@ -802,6 +802,9 @@ class ConstantArrayType(ArrayType):
         #
         # return False
 
+    def __hash__(self):
+        return hash(str(self))
+
     def typeCode(self):
         return 'arr[{}]'.format(self.length)
 
@@ -839,7 +842,8 @@ class IncompleteArrayType(ArrayType):
 
     @property
     def width(self):
-        return Pointer.width
+        raise NotImplementedError()
+        return Pointer.LENGTH
 
 
 class VariableArrayType(ArrayType):

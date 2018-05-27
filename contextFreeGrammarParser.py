@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
         for i, ln in enumerate(code):
             print(i, ln)
-        vm = instructions.HAHA(code, funcs)
+        vm = instructions.HAHA(code, funcs, 8)
         vm.mainloop()
 
         # file.write('{0}'

@@ -522,8 +522,8 @@ class IfStmt(Stmt['scope.IfScope']):
 
         if self.elseStmt:
             cmd.append('.if')
-            self.expr.rvalue1(cmd)
-            cmd.append(('jz', el))
+            self.expr.genBoolean(cmd, None, el)
+            # cmd.append(('jz', el))
             self.stmt.gen1(cmd, continuePos, breakPos)
             cmd.append(('jmp', endif))
             cmd.append(el)
@@ -532,8 +532,8 @@ class IfStmt(Stmt['scope.IfScope']):
 
         else:
             cmd.append('.if')
-            self.expr.rvalue1(cmd)
-            cmd.append(('jz', endif))
+            self.expr.genBoolean(cmd, None, endif)
+            # cmd.append(('jz', endif))
             self.stmt.gen1(cmd, continuePos, breakPos)
             cmd.append(endif)
 
@@ -564,12 +564,8 @@ class ForStmt(Stmt['scope.ForScope']):
         cmd.append(cond)
 
         if self.e2 is not None:
-            self.e2.rvalue1(cmd)
+            self.e2.genBoolean(cmd, None, endFor)
 
-        else:
-            cmd.append(instructions.LoadInstantly(c_type.Int32(), 1))
-
-        cmd.append(('jz', endFor))
         self.stmt.gen1(cmd, next, endFor)
         cmd.append(next)
         if self.e3 is not None:
@@ -610,8 +606,8 @@ class WhileStmt(Stmt['scope.WhileScope']):
         endwhile = ['.end while']
 
         cmd.append(w)
-        self.expr.rvalue1(cmd)
-        cmd.append(('jz', endwhile))
+        self.expr.genBoolean(cmd, None, endwhile)
+        # cmd.append(('jz', endwhile))
         self.stmt.gen1(cmd, w, endwhile)
         cmd.append(('jmp', w))
         cmd.append(endwhile)
@@ -637,9 +633,9 @@ class DoStmt(Stmt):
 
         cmd.append(do)
         self.stmt.gen1(cmd, do, enddo)
-        self.expr.rvalue1(cmd)
-        cmd.append(('jz', enddo))
-        cmd.append(('jmp', do))
+        self.expr.genBoolean(cmd, do, enddo)
+        # cmd.append(('jz', enddo))
+        # cmd.append(('jmp', do))
         cmd.append(enddo)
 
     def __str__(self):
@@ -978,6 +974,13 @@ class Expr(Stmt):
     def isConstant(self):
         return self.result.isConstant
 
+    def genBoolean(self, cmd: list, true, false):
+        self.rvalue1(cmd)
+        if false is not None:
+            cmd.append(('jz', false))
+        if true is not None:
+            cmd.append(('jmp', true))
+
     def lvalue1(self, cmd: list):
         raise NotImplementedError(self.__class__.__name__)
 
@@ -1071,8 +1074,8 @@ class StringLiteral(Expr):
     def __init__(self, v: str, type: 'c_type.QualifiedType', env):
         assert isinstance(v, str)
         assert isinstance(type, c_type.QualifiedType)
-        assert isinstance(env, scopes.IFathers)
         super().__init__(env)
+        assert isinstance(env, scopes.IFathers)
         addr = env.globalFather.insertConstantString(v, type)
         self._result = EvaluateResult(type, addr, isLvalue=True)
         self.string: str = v
@@ -1892,6 +1895,27 @@ class BinaryOperator(Expr):
                '</{0}>' \
             .format(self.__class__.__name__, self.op, self.getLHS(), self.getRHS(), result=self.result)
 
+    def genBoolean(self, cmd: list, true, false):
+        if self.op not in ('||', '&&'):
+            super().genBoolean(cmd, true, false)
+        if self.op == '||':
+            self.getLHS().genBoolean(cmd, true, false)
+            if true is not None:
+                cmd.append(('jnz', true))
+
+            self.getRHS().genBoolean(cmd, true, false)
+            if false is not None:
+                cmd.append(('jz', false))
+
+        elif self.op == '&&':
+            self.getLHS().genBoolean(cmd, true, false)
+            if false is not None:
+                cmd.append(('jz', false))
+
+            self.getRHS().genBoolean(cmd, true, false)
+            if true is not None:
+                cmd.append(('jnz', true))
+
     def rvalue1(self, cmd: list):
         if self.isConstant:  # 此处会运行deduceType
             cmd.append(instructions.LoadInstantly(self.type(), self.value))
@@ -2337,15 +2361,15 @@ def tryToDeduceTypeForAssignment(qleft: 'c_type.QualifiedType', rhs: Expr, scope
         if right.isArithmeticType():
             assert isinstance(left, c_type.PrimitiveType)
             assert isinstance(right, c_type.PrimitiveType)
-            if left.rank() == right.rank():
-                assert left != right
-                return implicitCastRHS(qleft)
+            # if left.rank() == right.rank():
+            #     assert left != right
+            return implicitCastRHS(qleft)
 
-            elif left.rank() > right.rank():
-                return implicitCastRHS(qleft)
-
-            else:
-                raise RuntimeError("不能将'{}'隐式转换为'{}'".format(right, left))
+            # elif left.rank() > right.rank():
+            #     return implicitCastRHS(qleft)
+            #
+            # else:
+            #     raise RuntimeError("不能将'{}'隐式转换为'{}'".format(right, left))
 
         elif isinstance(right, c_type.Pointer):
             raise RuntimeError("不能将'{}'类型的值赋给'{}'".format(right, left))

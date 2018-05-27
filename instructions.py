@@ -263,35 +263,50 @@ class HAHA:
                     value, _ = self.pop()
                     if value == 0:
                         self.pc = arg
+
+                elif predicate == 'jnz':
+                    arg = act[1][-1]
+                    assert isinstance(arg, int)
+                    value, _ = self.pop()
+                    if value != 0:
+                        self.pc = arg
+
                 elif predicate in ('jmp', 'break', 'continue'):
                     arg = act[1][-1]
                     assert isinstance(arg, int)
                     self.pc = arg
+
                 elif predicate == 'binary':
                     arg = act[1]
                     assert isinstance(arg, str)
                     self.binary(arg)
+
                 elif predicate == 'unary':
                     arg = act[1]
                     assert isinstance(arg, str)
                     self.unary(arg)
+
                 continue
             if isinstance(act, str):
                 if act[0] == '.' or act.startswith('//'):
                     continue
+
                 elif act == 'add bp':
                     (v, w) = self.pop()
                     v += self.bp
                     self.push((v, w))
+
                 elif act == 'add sp':
                     (v, w) = self.pop()
                     v += self.sp
                     self.push((v, w))
+
                 elif act == 'call':
                     (func, _) = self.pop()
                     assert _ == 8
                     print('call function @{}'.format(func))
                     self.call(self.__cmd[func])
+
                 elif act == 'store':  # -2
                     (addr, _) = self.pop()
                     assert _ == 8
@@ -301,31 +316,43 @@ class HAHA:
                         assert width in (1, 4, 8)
                         if width == 1:
                             Packer.packU1(addr)(value)
+
                         elif width == 4:
                             Packer.packU4(addr)(value)
+
                         else:
                             Packer.packU8(addr)(value)
+
                     else:
                         assert width in (4, 8)
                         if width == 4:
                             Packer.packF4(addr)(value)
+
                         else:
                             Packer.packF8(addr)(value)
+
                     pmem(self)
                 elif act == 'ret':
                     self.ret()
+
                 elif act == 'duplicate':
                     self.duplicate()
+
                 elif act == 'inc':  # 0
                     self.inc()
+
                 elif act == 'dec':  # 0
                     self.dec()
+
                 elif act == 'push sp':  # +1
                     self.push((self.sp, 8))
+
                 elif act == 'pop':  # -1
                     self.pop()
+
                 elif act == 'swap':
                     self.stack[-1], self.stack[-2] = self.stack[-2], self.stack[-1]
+
                 else:
                     assert 0
                 continue

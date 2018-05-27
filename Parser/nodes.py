@@ -381,16 +381,20 @@ class InitDeclarator(Intermediate):
                 env.insertTypedefDecl(decl)
 
         else:
-            if type0().isIncompleteType():
-                raise RuntimeError('类型{}不完全，无法用它定义变量{}, 位置:{}'
-                                   .format(type0(), tok.data, tok.position))
+            # print('type1={}'.format(type1()))
 
             if category == 'var':
                 decl = ast.ValueDecl(tok.data, type1, isinstance(env, scopes.GlobalScope))
-                env.insertValueDecl(decl)
+                res = None
                 if self.initializer:
-                    return self.initializer.visit(decl, type1, env)
+                    res = self.initializer.visit(decl, env)
 
+                if decl.declType().isIncompleteType():
+                    raise RuntimeError('类型{}不完全，无法用它定义变量{}, 位置:{}'
+                                       .format(decl.declType(), tok.data, tok.position))
+
+                env.insertValueDecl(decl)
+                return res
             else:
                 assert category == 'typedef'
                 decl = ast.TypedefDecl(tok.data, type1)
@@ -1496,16 +1500,23 @@ class Initializer(Intermediate):
         else:
             self.initializerList = args[1]
 
-    def visit(self, decl, qualType: c_type.QualifiedType, env: 'scopes.DeclScope'):
+    def visit(self, decl, env: 'scopes.DeclScope'):
         raise NotImplementedError()
-        if self.relativeOrder == 1:
-            assert isinstance(self.expr, AssignmentExpression)
-            assert isinstance(decl, ast.ValueDecl)
-            lhs = ast.DeclRefExpr(decl, env)
-            rhs = self.expr.visit(env)
-            return ast.ExprStmt(env, ast.AssignmentExpr(lhs, rhs, env))
-        elif self.relativeOrder == 2:
-            raise NotImplementedError()
+        if isinstance(env, scopes.GlobalScope):
+            if self.relativeOrder == 1:
+                assert isinstance(self.expr, AssignmentExpression)
+                assert isinstance(decl, ast.ValueDecl)
+                lhs = ast.DeclRefExpr(decl, env)
+                rhs = self.expr.visit(env)
+                if not rhs.isConstant:
+                    raise RuntimeError("initializer element is not a compile-time constant")
+                rhs = ast.tryToDeduceTypeForAssignment(lhs.type, rhs, env)
+                if rhs.type != lhs.type:
+                    raise RuntimeError('initialize {} with {} is illegal'.format(lhs.type, rhs.type))
+
+                # return ast.ExprStmt(env, ast.AssignmentExpr(lhs, rhs, env))
+            elif self.relativeOrder == 2:
+                raise NotImplementedError()
 
     def __str__(self):
         return '<{0}>{1}</{0}>'.format(self.character, self.expr or self.initializerList)

@@ -172,57 +172,13 @@ def matchSpace(s: str, start: int, end: int, loc: List[int]) -> Tuple[int, str]:
     return r, s[start:r]
 
 
-def tokenize(s: str) -> None:
-    loc = [1, 0]
-    i: int = 0
-    length: int = len(s)
-    # print(list(enumerate(s)))
-    while i < length:
-
-        flag: bool = False
-        for f in (matchSpace, matchComments):
-            i, _ = f(s, i, length, loc)
-            if _:
-                flag = True
-
-        def match(f: Callable[[str, int, int], Tuple[int, Any]], token_t: Optional[str]):
-            nonlocal flag, i
-            r, data = f(s, i, length)
-            if r > i:
-                flag = True
-                if token_t:
-                    res = CToken(token_t, data, SourceLocation(loc[0], i - loc[1]))
-                else:
-                    res = CToken(data, data, SourceLocation(loc[0], i - loc[1]))
-                i = r
-                return res
-
-        for f, token_t in ((nfa.matchCharacterLiteral, constantTag),
-                           (nfa.matchStringLiteral, constantTag),
-                           (matchNum, constantTag),
-                           (matchKeyword, None),
-                           (matchType, None),
-                           (matchIdentifier, identifierTag),
-                           (matchSymbol, None),
-                           ):
-            yie = match(f, token_t)
-            if yie:
-                yield yie
-        if not flag:
-            raise RuntimeError('unkown character \'%s\' at line %s, column %s: %s' % (
-                s[i], loc[0], i - loc[1], s[max(i - 10, 0):min(i + 10, length)]))
-
-
 def makeCircumflexFromTo(start: int, end: int):
     return ' ' * start + '^' * (end - start)
 
 
 def tokenize1(lines: List[str]) -> List[CToken]:
     totalLines = len(lines)
-    # print(list(enumerate(s)))
     tokens = []
-    # for i in range(len(lines)):
-    #     lines[i] = lines[i][:-1] + '  \n'
 
     inComment: bool = False
     for line, s in enumerate(lines):
