@@ -1,3 +1,0 @@
-
-class Failed(RuntimeError):
-    pass

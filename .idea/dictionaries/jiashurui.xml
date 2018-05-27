@@ -1,3 +1,13 @@
 <component name="ProjectDictionaryState">
-  <dictionary name="jiashurui" />
+  <dictionary name="jiashurui">
+    <words>
+      <w>decl</w>
+      <w>declarator</w>
+      <w>exprs</w>
+      <w>extern</w>
+      <w>goto</w>
+      <w>redeclarable</w>
+      <w>struct</w>
+    </words>
+  </dictionary>
 </component>
