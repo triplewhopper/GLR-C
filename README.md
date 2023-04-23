@@ -1,5 +1,5 @@
 # GLR-C
-a simple interpreter based on GLR(1) implemented in Python
+A simple interpreter based on GLR(1) implemented in Python (English follows).
 ## 预处理
 * 没写。
 
@@ -29,3 +29,31 @@ a simple interpreter based on GLR(1) implemented in Python
 * 就是十几个指令搞个栈式虚拟机。
 * 求右值还是求左值是值得注意的。
 * 但是还要注意跳转指令的生成。反正我是直接搞个空的`list`先填进去然后全完成了计算行号的时候再填。可变数据类型还是有优点的。
+
+# GLR-C
+A simple interpreter based on GLR(1) implemented in Python.
+
+## Preprocessing
+* Not implemented.
+
+## Lexical Analysis
+* Typical tokens are handled using `re`.
+* Tokens for escape strings are handled using a handwritten automaton (luckily with a few states).
+* Numbers are handled using `re` with manual checks (e.g. report error for literal overflow).
+
+## Syntax Analysis
+* Refer to the LR(1) analyzer part of *Compilers: Principles,Techniques,and Tools* (because it is easy to implement than LALR(1)), but we actually implemented a GLR(1) analyzer. The difference is that a GLR(1) analyzer maintains a directed acyclic Graph (DAG), equivalent to multiple parse branches. Any branches with the identical top state after reduction, are merged. To do this, we maintained a set of predecessor vertices for each vertex in the DAG, and merge corresponding sets. However, it is important to maintain correspondence between generated ParseTree nodes and DAG nodes. For example, suppose there are two branches (whose top node is A, B respectively) that need to be merged. If the predecessor of A is AA and the predecessor of B is BB, then you cannot simply move from the ParseTreeNode originally belonging to A, to the ParseTreeNode originally belonging to BB, as this would cause chaos.
+* As for reduction, which actually becomes backtracking here, where you try to ascend along the predecessors to see if each branch is valid. Here is problem arises: since merging may occur, a point in the DAG may correspond to multiple ParseTreeNodes. According to the multiplication principle, there are many possible combinations. I enumerated them all, but it was still rather fast :)
+* There are many details that need to be taken care of.
+* I wrote a class for every non-terminal symbol in the grammar.
+* When constructing an object of the non-terminals class, a useful optimization is to discard those obviously illeagal candidates (e.g. dangling `else`, which my GLR cannot handle).
+
+## Generating AST
+* The symbol table is constructed while generating the AST. The annoying thing is that C's expressions and variable definitions are tightly coupled, and oh, there are weird types too. Types can be recursive, and then structs and functions come together for the fun.
+* Type checking is just copying from the C99 standard.
+
+## Generating Code
+* If no optimization is performed, this part seems to be the easiest to write.
+* Just use a stack-based virtual machine with a dozen or so instructions.
+* It is important to deal with lvalue and rvalue properly. 
+* The jump instruction. A practical way is to use an empty mutable list as the jumping target, and then filled it in when after the line number had been calculated. Mutable data types still have their advantages.
